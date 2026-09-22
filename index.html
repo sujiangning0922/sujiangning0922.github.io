@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>云帆的围棋乐园</title>
+<style>
+  /* ============================================
+     视觉参考：星露谷物语的暖色柔和 + 任天堂式的圆润友好
+     配色：奶油底 + 蜂蜜木色 + 圆润黑白棋子
+     ============================================ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: linear-gradient(160deg, #fff6e5 0%, #ffe8c8 55%, #f7dcb4 100%);
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #app {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 12px 12px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  header { text-align: center; margin-top: 8px; }
+  header h1 {
+    font-size: 26px;
+    color: #7a4a1f;
+    letter-spacing: 2px;
+    text-shadow: 0 2px 0 rgba(255,255,255,.6);
+  }
+  header p { font-size: 13px; color: #b08050; margin-top: 4px; }
+
+  #status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: #fffdf7;
+    border: 3px solid #e8b96a;
+    border-radius: 18px;
+    padding: 10px 16px;
+    box-shadow: 0 4px 0 #d9a04e;
+  }
+  .player-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    color: #6b4a2f;
+  }
+  .mini-stone {
+    width: 22px; height: 22px; border-radius: 50%;
+    box-shadow: 0 2px 3px rgba(0,0,0,.25), inset -2px -3px 4px rgba(0,0,0,.15);
+  }
+  .mini-black { background: radial-gradient(circle at 35% 30%, #666, #222 60%, #000); }
+  .mini-white { background: radial-gradient(circle at 35% 30%, #fff, #eee 55%, #cfcfcf); }
+  .caps { font-size: 12px; color: #b08050; font-weight: normal; }
+
+  #turn-banner {
+    font-size: 15px;
+    font-weight: bold;
+    color: #fff;
+    background: linear-gradient(180deg, #f0a24a, #dd822a);
+    padding: 6px 14px;
+    border-radius: 999px;
+    box-shadow: 0 3px 0 #b96a1e;
+    white-space: nowrap;
+  }
+
+  #board-wrap {
+    width: 100%;
+    border-radius: 22px;
+    padding: 10px;
+    background: linear-gradient(180deg, #c98d4b, #b5773a);
+    box-shadow: 0 8px 0 #9c6530, 0 14px 24px rgba(122,74,31,.35);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    border-radius: 14px;
+    cursor: pointer;
+  }
+
+  #controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  button {
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: bold;
+    color: #7a4a1f;
+    background: linear-gradient(180deg, #fffdf7, #ffeccb);
+    border: 3px solid #e8b96a;
+    border-radius: 16px;
+    padding: 10px 20px;
+    box-shadow: 0 4px 0 #d9a04e;
+    cursor: pointer;
+    transition: transform .06s, box-shadow .06s;
+  }
+  button:active { transform: translateY(3px); box-shadow: 0 1px 0 #d9a04e; }
+
+  /* 终局弹窗 */
+  #game-over {
+    position: fixed;
+    inset: 0;
+    background: rgba(90, 55, 20, .45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  #game-over.show { display: flex; }
+  #game-over .card {
+    background: #fffdf7;
+    border: 4px solid #e8b96a;
+    border-radius: 24px;
+    padding: 28px 36px;
+    text-align: center;
+    box-shadow: 0 10px 0 #d9a04e;
+    max-width: 320px;
+  }
+  #game-over h2 { color: #7a4a1f; font-size: 24px; margin-bottom: 12px; }
+  #game-over p { color: #6b4a2f; font-size: 16px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🌰 云帆的围棋乐园</h1>
+    <p>双人轮流对弈 · 黑先白后 · 点击棋盘交叉点落子</p>
+  </header>
+
+  <div id="status-bar">
+    <div class="player-box">
+      <div class="mini-stone mini-black"></div>
+      <div>黑方 <span class="caps" id="caps-black">提子 0</span></div>
+    </div>
+    <div id="turn-banner">⚫ 黑棋落子</div>
+    <div class="player-box">
+      <div class="mini-stone mini-white"></div>
+      <div>白方 <span class="caps" id="caps-white">提子 0</span></div>
+    </div>
+  </div>
+
+  <div id="board-wrap">
+    <canvas id="board" width="740" height="740"></canvas>
+  </div>
+
+  <div id="controls">
+    <button id="btn-pass">🙋 虚手（停一手）</button>
+    <button id="btn-undo">↩️ 悔棋</button>
+    <button id="btn-restart">🔄 重新开始</button>
+  </div>
+</div>
+
+<div id="game-over">
+  <div class="card">
+    <h2 id="result-title">🏆 对局结束</h2>
+    <p id="result-text"></p>
+    <br>
+    <button onclick="restartGame()">🔄 再来一局</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+ * 围棋核心引擎 engine.js
+ * 只管规则，不管界面 —— 这叫"逻辑与界面分离"，很重要哦
+ * 浏览器里通过 window.GoEngine 使用；Node 里通过 require 使用（测试用）
+ * ========================================================= */
+(function (global) {
+  const SIZE = 19;                    // 19 路棋盘
+  const EMPTY = 0, BLACK = 1, WHITE = 2;
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+  /* 一局棋的全部状态，打包成一个对象，方便管理和悔棋 */
+  function createGame() {
+    return {
+      board: Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY)),
+      currentPlayer: BLACK,
+      captures: { [BLACK]: 0, [WHITE]: 0 },
+      lastMove: null,   // 上一手落在哪（打劫判断要用）
+      ko: null,         // 劫争禁着点 {x, y}
+      history: [],      // 每一步的完整快照，悔棋 = 弹出最后一个
+      passes: 0         // 连续虚手（Pass）次数，双方连续虚手 = 终局
+    };
+  }
+
+  function inBoard(x, y) {
+    return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+  }
+
+  /* ---------- flood fill：找出 (x,y) 这块棋的所有子和气数 ----------
+   * 返回 { stones: [{x,y}...], liberties: 气数 }
+   * 这是围棋程序里最重要的算法：用"涂色扩散"的方式遍历连在一起的同色棋子
+   */
+  function getGroup(board, x, y) {
+    const color = board[y][x];
+    const stones = [];
+    const visited = new Set();
+    let liberties = 0;
+    const stack = [[x, y]];
+    visited.add(x + ',' + y);
+
+    while (stack.length > 0) {
+      const [cx, cy] = stack.pop();
+      stones.push({ x: cx, y: cy });
+      for (const [dx, dy] of DIRS) {
+        const nx = cx + dx, ny = cy + dy;
+        if (!inBoard(nx, ny)) continue;
+        const key = nx + ',' + ny;
+        if (visited.has(key)) continue;
+        if (board[ny][nx] === EMPTY) {
+          liberties++;          // 旁边是空点 = 一口气
+          visited.add(key);     // 同一口气只数一次
+        } else if (board[ny][nx] === color) {
+          visited.add(key);
+          stack.push([nx, ny]); // 同色棋子属于同一块，继续扩散
+        }
+      }
+    }
+    return { stones, liberties };
+  }
+
+  /* ---------- 尝试在 (x,y) 为 color 落子 ----------
+   * 返回 { ok: true } 或 { ok: false, reason: '原因' }
+   * 规则顺序：放子 → 提掉无气的敌子 → 检查自己是否无气（禁入点）→ 检查劫争
+   */
+  function tryPlace(game, x, y, color) {
+    const { board } = game;
+    if (!inBoard(x, y)) return { ok: false, reason: 'out' };
+    if (board[y][x] !== EMPTY) return { ok: false, reason: 'occupied' };
+    if (game.ko && game.ko.x === x && game.ko.y === y) {
+      return { ok: false, reason: 'ko' };   // 打劫：不能立刻回提
+    }
+
+    // 落子前存一份快照（悔棋用），放在真正修改棋盘之前
+    game.history.push({
+      board: board.map(row => row.slice()),
+      currentPlayer: game.currentPlayer,
+      captures: { ...game.captures },
+      lastMove: game.lastMove ? { ...game.lastMove } : null,
+      ko: game.ko ? { ...game.ko } : null,
+      passes: game.passes
+    });
+
+    board[y][x] = color;
+    const enemy = 3 - color;          // 小技巧：1↔2 互换，黑的对方是白
+    const captured = [];
+    const checked = new Set();        // 避免同一块敌棋被重复检查
+
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (!inBoard(nx, ny) || board[ny][nx] !== enemy) continue;
+      const key = nx + ',' + ny;
+      if (checked.has(key)) continue;
+      const g = getGroup(board, nx, ny);
+      g.stones.forEach(s => checked.add(s.x + ',' + s.y));
+      if (g.liberties === 0) captured.push(...g.stones); // 敌块无气 → 提掉
+    }
+    captured.forEach(s => { board[s.y][s.x] = EMPTY; });
+
+    // 禁入点检查：提完敌子，自己这块棋仍然没有气 → 自杀，判违规
+    const self = getGroup(board, x, y);
+    if (self.liberties === 0) {
+      game.history.pop();                                   // 撤销快照
+      captured.forEach(s => { board[s.y][s.x] = enemy; });  // 敌子放回
+      board[y][x] = EMPTY;                                  // 自己的子拿掉
+      return { ok: false, reason: 'suicide' };
+    }
+
+    // 劫争检测：恰好只提一个子，且被提的位置 = 对方上一手落子点
+    // → 形成"打劫"，对方下一手不能立刻回提这个点
+    game.ko = null;
+    if (captured.length === 1 && game.lastMove &&
+        game.lastMove.x === captured[0].x && game.lastMove.y === captured[0].y) {
+      game.ko = { x: captured[0].x, y: captured[0].y };
+    }
+
+    game.captures[color] += captured.length;
+    game.lastMove = { x, y };
+    game.currentPlayer = enemy;     // 换手
+    game.passes = 0;
+    return { ok: true, captured };
+  }
+
+  /* ---------- 虚手（Pass）：放弃一手 ---------- */
+  function pass(game) {
+    game.history.push({
+      board: game.board.map(row => row.slice()),
+      currentPlayer: game.currentPlayer,
+      captures: { ...game.captures },
+      lastMove: game.lastMove ? { ...game.lastMove } : null,
+      ko: game.ko ? { ...game.ko } : null,
+      passes: game.passes
+    });
+    game.ko = null;
+    game.lastMove = null;
+    game.passes++;
+    game.currentPlayer = 3 - game.currentPlayer;
+    return game.passes >= 2;   // 双方连续虚手 → 终局
+  }
+
+  /* ---------- 悔棋：弹出上一步的快照 ---------- */
+  function undo(game) {
+    const prev = game.history.pop();
+    if (!prev) return false;
+    game.board = prev.board;
+    game.currentPlayer = prev.currentPlayer;
+    game.captures = prev.captures;
+    game.lastMove = prev.lastMove;
+    game.ko = prev.ko;
+    game.passes = prev.passes;
+    return true;
+  }
+
+  /* ---------- 数子法（中国规则）判定胜负 ----------
+   * 数空点：每一块"空"如果只被一种颜色包围，就算该颜色的空
+   * 子空皆地：黑方得分 = 黑子数 + 黑空数；白方同理 + 贴目
+   * 返回 { black, white, blackPoints, whitePoints, winner, margin }
+   */
+  function score(game, komi) {
+    komi = komi === undefined ? 7.5 : komi;
+    const { board } = game;
+    const visited = new Set();
+    let blackPoints = 0, whitePoints = 0;
+
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        if (board[y][x] === BLACK) blackPoints++;
+        else if (board[y][x] === WHITE) whitePoints++;
+        else if (board[y][x] === EMPTY && !visited.has(x + ',' + y)) {
+          // 用 flood fill 找出这片空，看它四周都是谁的棋子
+          const empties = [];
+          let touchesBlack = false, touchesWhite = false;
+          const stack = [[x, y]];
+          visited.add(x + ',' + y);
+          while (stack.length > 0) {
+            const [cx, cy] = stack.pop();
+            empties.push({ x: cx, y: cy });
+            for (const [dx, dy] of DIRS) {
+              const nx = cx + dx, ny = cy + dy;
+              if (!inBoard(nx, ny)) continue;
+              const key = nx + ',' + ny;
+              if (visited.has(key)) continue;
+              if (board[ny][nx] === BLACK) { touchesBlack = true; }
+              else if (board[ny][nx] === WHITE) { touchesWhite = true; }
+              else { visited.add(key); stack.push([nx, ny]); }
+            }
+          }
+          // 公空（双方都碰到的空）谁也不算
+          if (touchesBlack && !touchesWhite) blackPoints += empties.length;
+          else if (touchesWhite && !touchesBlack) whitePoints += empties.length;
+        }
+      }
+    }
+    const blackScore = blackPoints;
+    const whiteScore = whitePoints + komi;
+    const winner = blackScore > whiteScore ? BLACK : WHITE;
+    return {
+      black: blackScore, white: whiteScore,
+      winner, margin: Math.abs(blackScore - whiteScore)
+    };
+  }
+
+  const api = { SIZE, EMPTY, BLACK, WHITE, DIRS, createGame, getGroup, tryPlace, pass, undo, score };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else global.GoEngine = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* =========================================================
+ * 界面层：只负责画图和接手的点击，规则全部交给 engine.js
+ * 这就是"逻辑与界面分离"：引擎换了，界面不用改
+ * ========================================================= */
+const E = window.GoEngine;
+let game = E.createGame();
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const PAD = 40;
+const CELL = (740 - PAD * 2) / (E.SIZE - 1);
+
+function pixelToGrid(px, py) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const gx = Math.round(((px - rect.left) * scaleX - PAD) / CELL);
+  const gy = Math.round(((py - rect.top) * scaleY - PAD) / CELL);
+  return E.DIRS && gx >= 0 && gx < E.SIZE && gy >= 0 && gy < E.SIZE ? { x: gx, y: gy } : null;
+}
+
+function draw() {
+  /* ---- 木纹棋盘 ---- */
+  const wood = ctx.createLinearGradient(0, 0, 740, 740);
+  wood.addColorStop(0, '#f2c979');
+  wood.addColorStop(0.5, '#eab75f');
+  wood.addColorStop(1, '#dfa64d');
+  ctx.fillStyle = wood;
+  ctx.fillRect(0, 0, 740, 740);
+
+  ctx.strokeStyle = 'rgba(160, 105, 45, 0.10)';
+  ctx.lineWidth = 6;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-50, 100 + i * 120);
+    ctx.bezierCurveTo(250, 60 + i * 125, 500, 150 + i * 115, 790, 90 + i * 125);
+    ctx.stroke();
+  }
+
+  /* ---- 网格线 ---- */
+  ctx.strokeStyle = '#7c5330';
+  ctx.lineWidth = 1.4;
+  for (let i = 0; i < E.SIZE; i++) {
+    const p = PAD + i * CELL;
+    ctx.beginPath(); ctx.moveTo(PAD, p); ctx.lineTo(740 - PAD, p); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p, PAD); ctx.lineTo(p, 740 - PAD); ctx.stroke();
+  }
+
+  /* ---- 星位 ---- */
+  ctx.fillStyle = '#7c5330';
+  for (const sx of [3, 9, 15]) for (const sy of [3, 9, 15]) {
+    ctx.beginPath();
+    ctx.arc(PAD + sx * CELL, PAD + sy * CELL, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* ---- 棋子 ---- */
+  for (let y = 0; y < E.SIZE; y++)
+    for (let x = 0; x < E.SIZE; x++)
+      if (game.board[y][x] !== E.EMPTY) drawStone(x, y, game.board[y][x]);
+
+  /* ---- 最后一手标记 ---- */
+  if (game.lastMove) {
+    ctx.fillStyle = '#ff7b3a';
+    ctx.beginPath();
+    ctx.arc(PAD + game.lastMove.x * CELL, PAD + game.lastMove.y * CELL, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function drawStone(gx, gy, color) {
+  const cx = PAD + gx * CELL, cy = PAD + gy * CELL;
+  const r = CELL * 0.46;
+  ctx.fillStyle = 'rgba(90, 55, 20, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(cx + 2, cy + 4, r, r * 0.9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const g = ctx.createRadialGradient(cx - r*0.35, cy - r*0.4, r*0.1, cx, cy, r);
+  if (color === E.BLACK) {
+    g.addColorStop(0, '#6a6a6a'); g.addColorStop(0.55, '#2b2b2b'); g.addColorStop(1, '#0a0a0a');
+  } else {
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.6, '#f4f1ea'); g.addColorStop(1, '#c9c4b8');
+  }
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function updateStatus() {
+  document.getElementById('turn-banner').textContent =
+    game.currentPlayer === E.BLACK ? '⚫ 黑棋落子' : '⚪ 白棋落子';
+  document.getElementById('caps-black').textContent = `提子 ${game.captures[E.BLACK]}`;
+  document.getElementById('caps-white').textContent = `提子 ${game.captures[E.WHITE]}`;
+}
+
+function showGameOver() {
+  const r = E.score(game, 7.5);   // 黑贴7.5目（常见贴目）
+  const t = document.getElementById('result-title');
+  const x = document.getElementById('result-text');
+  t.textContent = r.winner === E.BLACK ? '🏆 黑棋获胜' : '🏆 白棋获胜';
+  x.innerHTML = `黑 ${r.black} 目 vs 白 ${r.white} 目<br>胜 ${r.margin} 目`;
+  document.getElementById('game-over').classList.add('show');
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  const g = pixelToGrid(e.clientX, e.clientY);
+  if (!g) return;
+  const r = E.tryPlace(game, g.x, g.y, game.currentPlayer);
+  if (r.ok) { draw(); updateStatus(); }
+});
+
+document.getElementById('btn-pass').addEventListener('click', () => {
+  const over = E.pass(game);
+  updateStatus();
+  if (over) showGameOver();
+});
+
+document.getElementById('btn-undo').addEventListener('click', () => {
+  if (E.undo(game)) { draw(); updateStatus(); }
+});
+
+function restartGame() {
+  game = E.createGame();
+  document.getElementById('game-over').classList.remove('show');
+  draw();
+  updateStatus();
+}
+document.getElementById('btn-restart').addEventListener('click', restartGame);
+
+draw();
+updateStatus();
+
+/* 开发调试用：在网址后加 ?demo=1 会自动摆上几颗子，方便检查绘制效果 */
+if (new URLSearchParams(location.search).has('demo')) {
+  E.tryPlace(game, 3, 3, E.BLACK);
+  E.tryPlace(game, 15, 15, E.WHITE);
+  E.tryPlace(game, 15, 3, E.BLACK);
+  E.tryPlace(game, 3, 15, E.WHITE);
+  E.tryPlace(game, 9, 9, E.BLACK);
+  draw();
+  updateStatus();
+}
+</script>
+</body>
+</html>
