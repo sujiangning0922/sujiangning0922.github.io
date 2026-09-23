@@ -77,6 +77,24 @@
     box-shadow: 0 3px 0 #b96a1e;
     white-space: nowrap;
   }
+  #turn-banner.thinking { background: linear-gradient(180deg, #9a9a9a, #777); box-shadow: 0 3px 0 #555; }
+
+  /* AI 解说气泡（支持多行：着法解说 / 形势 / 建议） */
+  #ai-say {
+    width: 100%;
+    background: #fff3dd;
+    border: 3px dashed #f0b45a;
+    border-radius: 16px;
+    padding: 10px 16px;
+    font-size: 15px;
+    color: #8a5a20;
+    min-height: 46px;
+    display: none;
+    white-space: pre-line;
+    line-height: 1.65;
+  }
+  #ai-say.show { display: block; }
+  #ai-say .who { font-weight: bold; margin-right: 6px; }
 
   #board-wrap {
     width: 100%;
@@ -108,10 +126,32 @@
   }
   button:active { transform: translateY(3px); box-shadow: 0 1px 0 #d9a04e; }
 
+  /* 开始菜单 */
+  #menu {
+    width: 100%;
+    background: #fffdf7;
+    border: 4px solid #e8b96a;
+    border-radius: 24px;
+    padding: 24px 20px;
+    box-shadow: 0 8px 0 #d9a04e;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  #menu h2 { color: #7a4a1f; text-align: center; font-size: 20px; }
+  .mode-btn {
+    font-size: 18px;
+    padding: 16px;
+    border-radius: 18px;
+    text-align: center;
+  }
+  #diff-row { display: flex; gap: 10px; justify-content: center; }
+  .diff-btn { font-size: 14px; padding: 8px 14px; opacity: .55; }
+  .diff-btn.sel { opacity: 1; background: linear-gradient(180deg, #ffd98a, #ffc766); }
+
   /* 终局弹窗 */
   #game-over {
-    position: fixed;
-    inset: 0;
+    position: fixed; inset: 0;
     background: rgba(90, 55, 20, .45);
     display: none;
     align-items: center;
@@ -136,29 +176,48 @@
 <div id="app">
   <header>
     <h1>🌰 云帆的围棋乐园</h1>
-    <p>双人轮流对弈 · 黑先白后 · 点击棋盘交叉点落子</p>
+    <p id="subtitle">选个模式，开始下棋吧！</p>
   </header>
 
-  <div id="status-bar">
-    <div class="player-box">
-      <div class="mini-stone mini-black"></div>
-      <div>黑方 <span class="caps" id="caps-black">提子 0</span></div>
-    </div>
-    <div id="turn-banner">⚫ 黑棋落子</div>
-    <div class="player-box">
-      <div class="mini-stone mini-white"></div>
-      <div>白方 <span class="caps" id="caps-white">提子 0</span></div>
+  <!-- 开始菜单 -->
+  <div id="menu">
+    <h2>🎮 你想怎么玩？</h2>
+    <button class="mode-btn" onclick="startGame('pvp')">🧑‍🤝‍🧑 双人对战<br><small style="font-weight:normal;color:#b08050">和朋友轮流用这台设备</small></button>
+    <button class="mode-btn" onclick="startGame('ai-black')">🤖 人机对弈 · 我执黑<br><small style="font-weight:normal;color:#b08050">AI 拿白棋，你先下</small></button>
+    <button class="mode-btn" onclick="startGame('ai-white')">🤖 人机对弈 · 我执白<br><small style="font-weight:normal;color:#b08050">AI 拿黑棋，它先下</small></button>
+    <div id="diff-row">
+      <button class="diff-btn" data-lv="easy" onclick="setLevel('easy')">😊 简单</button>
+      <button class="diff-btn sel" data-lv="normal" onclick="setLevel('normal')">😤 普通</button>
+      <button class="diff-btn" data-lv="hard" onclick="setLevel('hard')">😈 困难</button>
     </div>
   </div>
 
-  <div id="board-wrap">
-    <canvas id="board" width="740" height="740"></canvas>
-  </div>
+  <!-- 对局区（开局隐藏） -->
+  <div id="play-area" style="display:none;width:100%;">
+    <div id="status-bar">
+      <div class="player-box">
+        <div class="mini-stone mini-black"></div>
+        <div>黑方 <span class="caps" id="caps-black">提子 0</span></div>
+      </div>
+      <div id="turn-banner">⚫ 黑棋落子</div>
+      <div class="player-box">
+        <div class="mini-stone mini-white"></div>
+        <div>白方 <span class="caps" id="caps-white">提子 0</span></div>
+      </div>
+    </div>
 
-  <div id="controls">
-    <button id="btn-pass">🙋 虚手（停一手）</button>
-    <button id="btn-undo">↩️ 悔棋</button>
-    <button id="btn-restart">🔄 重新开始</button>
+    <div id="ai-say"><span class="who">🤖 AI：</span><span id="ai-say-text"></span></div>
+
+    <div id="board-wrap">
+      <canvas id="board" width="740" height="740"></canvas>
+    </div>
+
+    <div id="controls">
+      <button id="btn-pass">🙋 虚手</button>
+      <button id="btn-undo">↩️ 悔棋</button>
+      <button id="btn-restart">🔄 重开</button>
+      <button id="btn-menu">🏠 回菜单</button>
+    </div>
   </div>
 </div>
 
@@ -167,7 +226,7 @@
     <h2 id="result-title">🏆 对局结束</h2>
     <p id="result-text"></p>
     <br>
-    <button onclick="restartGame()">🔄 再来一局</button>
+    <button onclick="backToMenuFromOver()">🏠 回菜单</button>
   </div>
 </div>
 
@@ -233,9 +292,11 @@
 
   /* ---------- 尝试在 (x,y) 为 color 落子 ----------
    * 返回 { ok: true } 或 { ok: false, reason: '原因' }
+   * opts.record = false 时跳过历史快照（AI 模拟用，提速）
    * 规则顺序：放子 → 提掉无气的敌子 → 检查自己是否无气（禁入点）→ 检查劫争
    */
-  function tryPlace(game, x, y, color) {
+  function tryPlace(game, x, y, color, opts) {
+    const record = !opts || opts.record !== false;
     const { board } = game;
     if (!inBoard(x, y)) return { ok: false, reason: 'out' };
     if (board[y][x] !== EMPTY) return { ok: false, reason: 'occupied' };
@@ -244,14 +305,16 @@
     }
 
     // 落子前存一份快照（悔棋用），放在真正修改棋盘之前
-    game.history.push({
-      board: board.map(row => row.slice()),
-      currentPlayer: game.currentPlayer,
-      captures: { ...game.captures },
-      lastMove: game.lastMove ? { ...game.lastMove } : null,
-      ko: game.ko ? { ...game.ko } : null,
-      passes: game.passes
-    });
+    if (record) {
+      game.history.push({
+        board: board.map(row => row.slice()),
+        currentPlayer: game.currentPlayer,
+        captures: { ...game.captures },
+        lastMove: game.lastMove ? { ...game.lastMove } : null,
+        ko: game.ko ? { ...game.ko } : null,
+        passes: game.passes
+      });
+    }
 
     board[y][x] = color;
     const enemy = 3 - color;          // 小技巧：1↔2 互换，黑的对方是白
@@ -272,7 +335,7 @@
     // 禁入点检查：提完敌子，自己这块棋仍然没有气 → 自杀，判违规
     const self = getGroup(board, x, y);
     if (self.liberties === 0) {
-      game.history.pop();                                   // 撤销快照
+      if (record) game.history.pop();                       // 撤销快照
       captured.forEach(s => { board[s.y][s.x] = enemy; });  // 敌子放回
       board[y][x] = EMPTY;                                  // 自己的子拿掉
       return { ok: false, reason: 'suicide' };
@@ -380,11 +443,517 @@
 </script>
 <script>
 /* =========================================================
- * 界面层：只负责画图和接手的点击，规则全部交给 engine.js
- * 这就是"逻辑与界面分离"：引擎换了，界面不用改
+ * 围棋 AI v2：MCTS（蒙特卡洛树搜索）+ 战术直觉 + 专业解说
+ * ---------------------------------------------------------
+ * 讲给云帆听的版本：
+ *   v1 是"每个候选点都随便试几盘"，像蒙眼投票；
+ *   v2 会种一棵"决策树"——树根是当前局面，树枝是候选棋，
+ *   每次模拟沿着"目前看来最 promising"的树枝往下走，
+ *   走完把胜负记在小本本上（哪个节点赢了就 +1 分）。
+ *   树枝越赢越常被走到，越常走统计越准。
+ *   这就是 AlphaGo 也用的 MCTS 思想（它还加了神经网络，我们没有）。
+ * 难度 = 模拟总次数：easy 180 / normal 550 / hard 1300
+ * ========================================================= */
+(function (global) {
+  const E = (typeof module !== 'undefined' && module.exports)
+    ? require('./engine.js')
+    : global.GoEngine;
+
+  const SIZE = E.SIZE, EMPTY = E.EMPTY, BLACK = E.BLACK, WHITE = E.WHITE;
+  const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
+  const FAST = { record: false };
+  const C_EXPLORE = 0.65;      // UCB 探索系数：越大越爱尝试没走过的分支
+  const BUDGET = { easy: 300, normal: 800, hard: 2000 };  // 各难度模拟总次数（iPad 约为本机 1.5-2 倍耗时）
+
+  /* ---------- 围棋坐标 → 记谱坐标（跳过 I）：J16 这种 ---------- */
+  const LETTERS = 'ABCDEFGHJKLMNOPQRST';
+  function g2s(x, y) { return LETTERS[x] + (SIZE - y); }
+
+  function countStones(board) {
+    let n = 0;
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++)
+        if (board[y][x] !== EMPTY) n++;
+    return n;
+  }
+
+  function nearStones(board, x, y, d) {
+    d = d || 2;
+    for (let dy = -d; dy <= d; dy++)
+      for (let dx = -d; dx <= d; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && board[ny][nx] !== EMPTY) return true;
+      }
+    return false;
+  }
+
+  /* =========================================================
+   * 战术直觉：静态评分（不模拟，一眼看出好坏）
+   * 返回 { score, tags: [着法性质...] }
+   * ========================================================= */
+  function staticTactics(board, x, y, color) {
+    const stones = countStones(board);
+    // 试下在副本上
+    const test = E.createGame();
+    test.board = board.map(r => r.slice());
+    test.currentPlayer = color;
+    const r = E.tryPlace(test, x, y, color, FAST);
+    if (!r.ok) return { score: -9999, tags: [] };
+
+    const enemy = 3 - color;
+    const nb = test.board;
+    let s = 0;
+    const tags = [];
+
+    if (r.captured > 0) { s += 120 + r.captured * 20; tags.push('capture'); }
+
+    const self = E.getGroup(nb, x, y);
+    if (self.liberties === 1) { s -= 80; tags.push('self-atari'); }
+    else if (self.liberties === 2) s -= 12;
+    else if (self.liberties >= 4) s += 4;
+
+    // 打吃对方的棋
+    let atari = 0;
+    const seen = new Set();
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+      if (nb[ny][nx] === enemy && !seen.has(nx + ',' + ny)) {
+        const g = E.getGroup(nb, nx, ny);
+        g.stones.forEach(t => seen.add(t.x + ',' + t.y));
+        if (g.liberties === 1) { atari++; s += 45; }
+      }
+    }
+    if (atari > 0) tags.push('atari');
+
+    // 连接：试下后自己这块棋包含了多个"原己方大块"（简化：数相邻己子块数与总子数）
+    let friendBlocks = 0, friendStonesBefore = 0;
+    const bSeen = new Set();
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+      if (board[ny][nx] === color && !bSeen.has(nx + ',' + ny)) {
+        const g = E.getGroup(board, nx, ny);
+        friendBlocks++;
+        friendStonesBefore += g.stones.length;
+        g.stones.forEach(t => bSeen.add(t.x + ',' + t.y));
+      }
+    }
+    if (friendBlocks >= 2) { s += 30; tags.push('connect'); }        // 把两块连成一块
+    if (friendStonesBefore >= 4) s += 8;                             // 保护大棋
+
+    // 分断：周围敌子原本连通块数 vs 试下后敌子连通块数
+    let eBlocksBefore = new Set(), eBlocksAfter = 0;
+    const eSeen = new Set();
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+      if (board[ny][nx] === enemy) {
+        const g = E.getGroup(board, nx, ny);
+        eBlocksBefore.add(g.stones[0].x + ',' + g.stones[0].y);
+      }
+      if (nb[ny][nx] === enemy && !eSeen.has(nx + ',' + ny)) {
+        const g = E.getGroup(nb, nx, ny);
+        eBlocksAfter++;
+        g.stones.forEach(t => eSeen.add(t.x + ',' + t.y));
+      }
+    }
+    if (eBlocksAfter > eBlocksBefore.size && eBlocksBefore.size >= 1) { s += 38; tags.push('cut'); }
+
+    // 填真眼检测：四周皆己子、且落在己方内部空区
+    if (friendBlocks >= 2 && self.stones.length >= 3) {
+      let allFriend = true;
+      for (const [dx, dy] of DIRS) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE || nb[ny][nx] !== color) { allFriend = false; break; }
+      }
+      if (allFriend) { s -= 90; tags.push('fill-own-eye'); }
+    }
+
+    // 围空价值：试下点周围 3 格内的空点归属
+    let mySpace = 0, oppSpace = 0;
+    for (let dy = -3; dy <= 3; dy++)
+      for (let dx = -3; dx <= 3; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+        if (nb[ny][nx] !== EMPTY) continue;
+        let touchM = false, touchO = false;
+        for (const [ddx, ddy] of DIRS) {
+          const ax = nx + ddx, ay = ny + ddy;
+          if (ax < 0 || ax >= SIZE || ay < 0 || ay >= SIZE) continue;
+          if (nb[ay][ax] === color) touchM = true;
+          else if (nb[ay][ax] === enemy) touchO = true;
+        }
+        if (touchM && !touchO) mySpace++;
+        else if (touchO && !touchM) oppSpace++;
+      }
+    s += Math.min(mySpace, 12) * 1.2 + Math.min(oppSpace, 12) * 0.8;
+    if (mySpace >= 6) tags.push('secure-territory');
+    if (oppSpace >= 6) tags.push('invade');
+
+    // 开局占角大场
+    if (stones < 20) {
+      const edge = Math.min(x, y, SIZE - 1 - x, SIZE - 1 - y);
+      const star = (x === 3 || x === 9 || x === 15) && (y === 3 || y === 9 || y === 15);
+      if (star) { s += 14; tags.push('star'); }
+      else if ((x === 2 || x === 16) && (y === 2 || y === 16)) { s += 11; tags.push('corner'); }
+      else if (edge >= 2 && edge <= 4) s += 5;
+      // 开局抢分断/乱战 slight 惩罚：先布大局
+      if (tags.includes('cut') && stones < 8) s -= 25;
+    } else if (!nearStones(board, x, y, 2)) {
+      s -= 10;  // 中盘不下偏远缓手
+    }
+
+    const edge = Math.min(x, y, SIZE - 1 - x, SIZE - 1 - y);
+    if (edge === 0) s -= 14;
+    else if (edge === 1) s += 1;
+    else if (edge === 2 || edge === 3) s += 5;
+
+    return { score: s, tags, atari, selfLib: self.liberties, mySpace };
+  }
+
+  /* ---------- 候选点生成：静态评分 top N ---------- */
+  function genCandidates(board, color, maxN) {
+    maxN = maxN || 16;
+    const stones = countStones(board);
+    const list = [];
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++) {
+        if (board[y][x] !== EMPTY) continue;
+        if (stones >= 6 && !nearStones(board, x, y, 2)) {
+          // 远处只留开局要点
+          if (!(stones < 20 && (x === 3 || x === 9 || x === 15) && (y === 3 || y === 9 || y === 15))) continue;
+        }
+        const t = staticTactics(board, x, y, color);
+        if (t.score > -9999) list.push({ x, y, pri: t.score, tags: t.tags });
+      }
+    list.sort((a, b) => b.pri - a.pri);
+    return list.slice(0, maxN);
+  }
+
+  /* =========================================================
+   * 快速走子（rollout 专用）：加权随机，像"有点直觉的菜鸟"
+   * ========================================================= */
+  function quickScore(board, x, y, color) {
+    const test = E.createGame();
+    test.board = board.map(r => r.slice());
+    test.currentPlayer = color;
+    const r = E.tryPlace(test, x, y, color, FAST);
+    if (!r.ok) return -1;
+    let s = 2 + Math.random() * 2;
+    if (r.captured > 0) s += 12 + r.captured * 3;
+    const self = E.getGroup(test.board, x, y);
+    if (self.liberties === 1) s -= 11;
+    else if (self.liberties === 2) s -= 2;
+    else if (self.liberties >= 4) s += 2;
+    const enemy = 3 - color;
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+      if (test.board[ny][nx] === enemy) {
+        const g = E.getGroup(test.board, nx, ny);
+        if (g.liberties === 1) s += 8;
+      }
+      if (test.board[ny][nx] === color) s += 1.5;
+    }
+    // 围空意识：周围 2 格内"只接触己方"的空点越多越值得下
+    let mySpace = 0;
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE || test.board[ny][nx] !== EMPTY) continue;
+        let touchM = false, touchO = false;
+        for (const [ddx, ddy] of DIRS) {
+          const ax = nx + ddx, ay = ny + ddy;
+          if (ax < 0 || ax >= SIZE || ay < 0 || ay >= SIZE) continue;
+          if (test.board[ay][ax] === color) touchM = true;
+          else if (test.board[ay][ax] === enemy) touchO = true;
+        }
+        if (touchM && !touchO) mySpace++;
+      }
+    s += Math.min(mySpace, 10) * 0.9;
+    const edge = Math.min(x, y, SIZE - 1 - x, SIZE - 1 - y);
+    if (edge === 0) s -= 3;
+    return s;
+  }
+
+  function quickMove(game) {
+    const color = game.currentPlayer;
+    // 战场候选
+    const pool = [];
+    for (let i = 0; i < 26 && pool.length < 14; i++) {
+      const x = (Math.random() * SIZE) | 0, y = (Math.random() * SIZE) | 0;
+      if (game.board[y][x] !== EMPTY) continue;
+      if (countStones(game.board) >= 4 && !nearStones(game.board, x, y, 2)) continue;
+      if (!pool.some(p => p[0] === x && p[1] === y)) pool.push([x, y]);
+    }
+    if (pool.length === 0) return false;
+    // 打分 + softmax 加权随机
+    const scored = pool.map(([x, y]) => ({ x, y, s: quickScore(game.board, x, y, color) })).filter(p => p.s > 0);
+    if (scored.length === 0) return false;
+    let sum = 0;
+    for (const p of scored) { p.w = Math.exp(p.s / 6); sum += p.w; }
+    let roll = Math.random() * sum;
+    let pick = scored[0];
+    for (const p of scored) { roll -= p.w; if (roll <= 0) { pick = p; break; } }
+    const r = E.tryPlace(game, pick.x, pick.y, color, FAST);
+    return r.ok;
+  }
+
+  /* =========================================================
+   * MCTS 核心
+   * 节点: { move:{x,y}, parent, children:[], visits, wins, color(执子方), pri }
+   * ========================================================= */
+  function newNode(move, parent, color, pri) {
+    return { move, parent, children: [], visits: 0, wins: 0, color, pri: pri || 0, untried: null };
+  }
+
+  function ucb(node, parentVisits) {
+    if (node.visits === 0) return Infinity;
+    const exploit = node.wins / node.visits;
+    const explore = C_EXPLORE * Math.sqrt(Math.log(Math.max(parentVisits, 2)) / node.visits);
+    return exploit + explore + node.pri * 0.002;
+  }
+
+  /* rollout：从当前状态随机打到接近终局，返回赢家 */
+  function rollout(board, colorToMove, komi) {
+    const g = E.createGame();
+    g.board = board.map(r => r.slice());
+    g.currentPlayer = colorToMove;
+    let steps = 0;
+    const maxSteps = 56;
+    while (steps++ < maxSteps) {
+      if (!quickMove(g)) {
+        if (E.pass(g) && g.passes >= 2) break;
+        continue;
+      }
+      if (g.passes >= 2) break;
+    }
+    return E.score(g, komi).winner;
+  }
+
+  /* 根的虚拟"对局状态"：用副本重演路径 */
+  function replay(rootBoard, rootColor, path) {
+    const g = E.createGame();
+    g.board = rootBoard.map(r => r.slice());
+    g.currentPlayer = rootColor;
+    for (const mv of path) {
+      if (mv.pass) { E.pass(g); continue; }
+      E.tryPlace(g, mv.x, mv.y, g.currentPlayer, FAST);
+    }
+    return g;
+  }
+
+  function mctsBestMove(game, color, budget, komi) {
+    const rootBoard = game.board;
+    const root = newNode(null, null, color, 0);
+    root.untried = genCandidates(rootBoard, color, 16);
+
+    let sims = 0;
+    for (let iter = 0; iter < budget; iter++) {
+      // ---- 1. selection：从根沿 UCB 下钻，同时重演棋盘 ----
+      const g = E.createGame();
+      g.board = rootBoard.map(r => r.slice());
+      g.currentPlayer = color;
+      let node = root;
+      const path = [];
+      while (node.untried && node.untried.length === 0 && node.children.length > 0) {
+        let bestC = null, bestV = -1;
+        for (const c of node.children) {
+          const v = ucb(c, node.visits);
+          if (v > bestV) { bestV = v; bestC = c; }
+        }
+        path.push(bestC.move);
+        E.tryPlace(g, bestC.move.x, bestC.move.y, g.currentPlayer, FAST);
+        node = bestC;
+      }
+
+      // ---- 2. expansion：展开一个新候选 ----
+      if (node.untried && node.untried.length > 0) {
+        // 按 pri 加权挑一个未试候选
+        const idx = pickWeighted(node.untried);
+        const cand = node.untried.splice(idx, 1)[0];
+        const child = newNode({ x: cand.x, y: cand.y }, node, 3 - node.color, cand.pri);
+        node.children.push(child);
+        path.push(child.move);
+        E.tryPlace(g, child.move.x, child.move.y, g.currentPlayer, FAST);
+        node = child;
+      }
+
+      // ---- 3. simulation ----
+      const winner = rollout(g.board, g.currentPlayer, komi);
+      sims++;
+
+      // ---- 4. backpropagation：沿路径记小本本 ----
+      let n = node;
+      while (n) {
+        n.visits++;
+        if (n.color === winner) n.wins++;   // 节点执子方赢了就加分
+        n = n.parent;
+      }
+    }
+
+    // 选访问次数最多的根孩子（比纯胜率稳）
+    let best = null;
+    for (const c of root.children) {
+      if (!best || c.visits > best.visits) best = c;
+    }
+    if (!best) return { pass: true };
+    // 注意：child.wins 统计的是"走完这手后轮到的一方"的胜率，也就是 AI 的胜率
+    const winRate = best.visits > 0 ? best.wins / best.visits : 0;
+    return { x: best.move.x, y: best.move.y, winRate, visits: best.visits, total: budget };
+  }
+
+  function pickWeighted(arr) {
+    let sum = 0;
+    for (const a of arr) sum += Math.max(a.pri + 100, 1);
+    let roll = Math.random() * sum;
+    for (let i = 0; i < arr.length; i++) {
+      roll -= Math.max(arr[i].pri + 100, 1);
+      if (roll <= 0) return i;
+    }
+    return arr.length - 1;
+  }
+
+  /* =========================================================
+   * 着法名称：根据与周围棋子的几何关系（围棋术语）
+   * ========================================================= */
+  function moveName(board, x, y, color) {
+    const enemy = 3 - color;
+    // 最近的同方棋子相对位置
+    let f = null, e = null;
+    for (let dy = -3; dy <= 3; dy++)
+      for (let dx = -3; dx <= 3; dx++) {
+        if (!dx && !dy) continue;
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+        if (board[ny][nx] === color && !f) f = { dx, dy };
+        if (board[ny][nx] === enemy && !e) e = { dx, dy };
+      }
+    const dist = (p) => Math.max(Math.abs(p.dx), Math.abs(p.dy));
+    const manh = (p) => Math.abs(p.dx) + Math.abs(p.dy);
+
+    if (e && dist(e) === 1) {
+      if (manh(e) === 1) return '贴';
+      return '尖';
+    }
+    if (e && dist(e) <= 2) return '压';
+    if (!f) {
+      const star = (x === 3 || x === 9 || x === 15) && (y === 3 || y === 9 || y === 15);
+      if (star) return '拆';
+      return countStones(board) < 8 ? '占' : '守';
+    }
+    if (dist(f) === 1) return manh(f) === 1 ? '长' : '尖';
+    if (manh(f) === 3 && dist(f) === 2) return '小飞';
+    if (manh(f) === 4 && dist(f) <= 3) return '大飞';
+    if (manh(f) === 2 && dist(f) === 2) return '跳';
+    if (manh(f) === 2 && dist(f) === 1) return '跳';
+    if (f.dy === 0 || f.dx === 0) return '拆';
+    return '飞';
+  }
+
+  /* =========================================================
+   * 专业解说：着法名 + 目的 + 形势 + 建议
+   * ========================================================= */
+  function explainPro(game, move, color, komi) {
+    if (move.pass) return { main: '停一手。我觉得棋下完了，咱们数子吧？', detail: '' };
+
+    const t = staticTactics(game.board, move.x, move.y, color);
+    const name = moveName(game.board, move.x, move.y, color);
+    const who = color === BLACK ? '黑' : '白';
+    const pos = g2s(move.x, move.y);
+
+    // 目的描述
+    let purpose = '';
+    const tags = t.tags || [];
+    if (tags.includes('capture')) purpose = `提掉你${move.captured > 0 ? move.captured : ''}颗子，这片我收下了`;
+    else if (tags.includes('atari') && tags.includes('cut')) purpose = '分断你的棋，同时打吃，你头疼了吧';
+    else if (tags.includes('cut')) purpose = '把你的两块棋切断，它们要分别逃命了';
+    else if (tags.includes('atari')) purpose = '打吃！你的棋只剩一口气，快救';
+    else if (tags.includes('connect')) purpose = '把我断开的棋接上，变厚实了';
+    else if (tags.includes('invade')) purpose = '打入你的空里，这块空我不让你围了';
+    else if (tags.includes('secure-territory')) purpose = '在这里围空，巩固我的地盘';
+    else if (tags.includes('star') || tags.includes('corner')) purpose = '先占角，角上是围空效率最高的地方';
+    else if (t.selfLib === 2) purpose = '出头，这步棋气不多但跑出来了';
+    else if (move.winRate > 0.6) purpose = '稳妥的一手，慢慢扩大优势';
+    else if (move.winRate < 0.42) purpose = '局面吃紧，我加强防守';
+
+    // 形势：用当前盘面估算目差（开局子太少时不显示，免得"第一手就落后"的怪话）
+    let situation = '';
+    if (countStones(game.board) >= 6) {
+      try {
+        const sc = E.score(snapshotAfter(game, move, color), komi);
+        const diff = (sc.black - sc.white).toFixed(1);
+        const lead = sc.black > sc.white ? '黑' : '白';
+        situation = `形势：${lead}盘面领先${Math.abs(diff)}目`;
+      } catch (err) { situation = ''; }
+    }
+
+    const main = `${who}【${name}】${pos}。${purpose}。`;
+    return { main, detail: situation };
+  }
+
+  function snapshotAfter(game, move, color) {
+    const g = E.createGame();
+    g.board = game.board.map(r => r.slice());
+    g.currentPlayer = color;
+    E.tryPlace(g, move.x, move.y, color, FAST);
+    return g;
+  }
+
+  /* ---------- 对玩家下一步的建议（指导棋的灵魂） ---------- */
+  function advise(game, playerColor, komi) {
+    const cands = genCandidates(game.board, playerColor, 5);
+    if (cands.length === 0) return '';
+    const top = cands[0];
+    const t = staticTactics(game.board, top.x, top.y, playerColor);
+    let why = '';
+    if (t.tags.includes('capture')) why = '那里可以提我的子';
+    else if (t.tags.includes('atari')) why = '那里能打吃我的棋';
+    else if (t.tags.includes('cut')) why = '那里能断开我的棋';
+    else if (t.tags.includes('connect')) why = '你的断点需要接上';
+    else if (t.tags.includes('secure-territory')) why = '那里能守住你的空';
+    else if (t.tags.includes('invade')) why = '打入我的空，破坏我的地盘';
+    else why = '那里是当前的要点';
+    return `💡建议：你可以考虑【${g2s(top.x, top.y)}】，${why}`;
+  }
+
+  /* ---------- 对外接口 ---------- */
+  function bestMove(game, color, level, komi) {
+    const budget = BUDGET[level] || BUDGET.normal;
+    const t0 = Date.now();
+    const mv = mctsBestMove(game, color, budget, komi);
+    mv.thinkSec = ((Date.now() - t0) / 1000).toFixed(1);
+    if (mv.pass) {
+      mv.explainMain = '停一手。我觉得棋下完了，咱们数子吧？';
+      mv.explainDetail = '';
+      return mv;
+    }
+    const ex = explainPro(game, mv, color, komi);
+    mv.explainMain = ex.main;
+    mv.explainDetail = ex.detail;
+    mv.advice = advise(game, 3 - color, komi);
+    return mv;
+  }
+
+  const api = { bestMove, explainPro, staticTactics };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else global.GoAI = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* =========================================================
+ * 界面层：画图 + 接点击，规则全在 engine.js，AI 全在 ai.js
+ * mode: 'pvp' 双人 | 'ai-black' 你执黑 | 'ai-white' 你执白
  * ========================================================= */
 const E = window.GoEngine;
+const AI = window.GoAI;
 let game = E.createGame();
+let mode = 'pvp';
+let level = 'normal';
+let aiColor = null;        // AI 执子颜色（人机模式）
+let busy = false;          // AI 思考中，锁棋盘
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -393,24 +962,17 @@ const CELL = (740 - PAD * 2) / (E.SIZE - 1);
 
 function pixelToGrid(px, py) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const gx = Math.round(((px - rect.left) * scaleX - PAD) / CELL);
-  const gy = Math.round(((py - rect.top) * scaleY - PAD) / CELL);
-  return E.DIRS && gx >= 0 && gx < E.SIZE && gy >= 0 && gy < E.SIZE ? { x: gx, y: gy } : null;
+  const gx = Math.round(((px - rect.left) * (canvas.width / rect.width) - PAD) / CELL);
+  const gy = Math.round(((py - rect.top) * (canvas.height / rect.height) - PAD) / CELL);
+  return (gx >= 0 && gx < E.SIZE && gy >= 0 && gy < E.SIZE) ? { x: gx, y: gy } : null;
 }
 
 function draw() {
-  /* ---- 木纹棋盘 ---- */
   const wood = ctx.createLinearGradient(0, 0, 740, 740);
-  wood.addColorStop(0, '#f2c979');
-  wood.addColorStop(0.5, '#eab75f');
-  wood.addColorStop(1, '#dfa64d');
-  ctx.fillStyle = wood;
-  ctx.fillRect(0, 0, 740, 740);
+  wood.addColorStop(0, '#f2c979'); wood.addColorStop(0.5, '#eab75f'); wood.addColorStop(1, '#dfa64d');
+  ctx.fillStyle = wood; ctx.fillRect(0, 0, 740, 740);
 
-  ctx.strokeStyle = 'rgba(160, 105, 45, 0.10)';
-  ctx.lineWidth = 6;
+  ctx.strokeStyle = 'rgba(160, 105, 45, 0.10)'; ctx.lineWidth = 6;
   for (let i = 0; i < 6; i++) {
     ctx.beginPath();
     ctx.moveTo(-50, 100 + i * 120);
@@ -418,47 +980,33 @@ function draw() {
     ctx.stroke();
   }
 
-  /* ---- 网格线 ---- */
-  ctx.strokeStyle = '#7c5330';
-  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = '#7c5330'; ctx.lineWidth = 1.4;
   for (let i = 0; i < E.SIZE; i++) {
     const p = PAD + i * CELL;
     ctx.beginPath(); ctx.moveTo(PAD, p); ctx.lineTo(740 - PAD, p); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(p, PAD); ctx.lineTo(p, 740 - PAD); ctx.stroke();
   }
 
-  /* ---- 星位 ---- */
   ctx.fillStyle = '#7c5330';
   for (const sx of [3, 9, 15]) for (const sy of [3, 9, 15]) {
-    ctx.beginPath();
-    ctx.arc(PAD + sx * CELL, PAD + sy * CELL, 5, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(PAD + sx * CELL, PAD + sy * CELL, 5, 0, Math.PI * 2); ctx.fill();
   }
 
-  /* ---- 棋子 ---- */
   for (let y = 0; y < E.SIZE; y++)
     for (let x = 0; x < E.SIZE; x++)
       if (game.board[y][x] !== E.EMPTY) drawStone(x, y, game.board[y][x]);
 
-  /* ---- 最后一手标记 ---- */
   if (game.lastMove) {
     ctx.fillStyle = '#ff7b3a';
-    ctx.beginPath();
-    ctx.arc(PAD + game.lastMove.x * CELL, PAD + game.lastMove.y * CELL, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    ctx.beginPath(); ctx.arc(PAD + game.lastMove.x * CELL, PAD + game.lastMove.y * CELL, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
   }
 }
 
 function drawStone(gx, gy, color) {
-  const cx = PAD + gx * CELL, cy = PAD + gy * CELL;
-  const r = CELL * 0.46;
+  const cx = PAD + gx * CELL, cy = PAD + gy * CELL, r = CELL * 0.46;
   ctx.fillStyle = 'rgba(90, 55, 20, 0.25)';
-  ctx.beginPath();
-  ctx.ellipse(cx + 2, cy + 4, r, r * 0.9, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + 2, cy + 4, r, r * 0.9, 0, 0, Math.PI * 2); ctx.fill();
   const g = ctx.createRadialGradient(cx - r*0.35, cy - r*0.4, r*0.1, cx, cy, r);
   if (color === E.BLACK) {
     g.addColorStop(0, '#6a6a6a'); g.addColorStop(0.55, '#2b2b2b'); g.addColorStop(1, '#0a0a0a');
@@ -466,64 +1014,148 @@ function drawStone(gx, gy, color) {
     g.addColorStop(0, '#ffffff'); g.addColorStop(0.6, '#f4f1ea'); g.addColorStop(1, '#c9c4b8');
   }
   ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+}
+
+/* ---------- 流程控制 ---------- */
+function setLevel(lv) {
+  level = lv;
+  document.querySelectorAll('.diff-btn').forEach(b =>
+    b.classList.toggle('sel', b.dataset.lv === lv));
+}
+
+function startGame(m) {
+  mode = m;
+  aiColor = (m === 'ai-black') ? E.WHITE : (m === 'ai-white') ? E.BLACK : null;
+  game = E.createGame();
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('play-area').style.display = 'block';
+  document.getElementById('ai-say').classList.toggle('show', !!aiColor);
+  document.getElementById('subtitle').textContent =
+    m === 'pvp' ? '双人对战：黑先白后，轮流落子' :
+    aiColor === E.WHITE ? `人机对弈（${levelName()}）：你执黑先行` : `人机对弈（${levelName()}）：AI 执黑先行`;
+  draw(); updateStatus();
+  if (aiColor === E.BLACK) aiTurn();   // AI 执黑则它先下
+}
+
+function levelName() {
+  return level === 'easy' ? '简单' : level === 'normal' ? '普通' : '困难';
+}
+
+function backToMenu() {
+  game = E.createGame();
+  busy = false;
+  document.getElementById('play-area').style.display = 'none';
+  document.getElementById('menu').style.display = 'flex';
+  document.getElementById('subtitle').textContent = '选个模式，开始下棋吧！';
+}
+
+function backToMenuFromOver() {
+  document.getElementById('game-over').classList.remove('show');
+  backToMenu();
 }
 
 function updateStatus() {
-  document.getElementById('turn-banner').textContent =
-    game.currentPlayer === E.BLACK ? '⚫ 黑棋落子' : '⚪ 白棋落子';
+  const banner = document.getElementById('turn-banner');
+  if (busy) { banner.textContent = '🤔 AI 思考中…'; banner.classList.add('thinking'); return; }
+  banner.classList.remove('thinking');
+  banner.textContent = game.currentPlayer === E.BLACK ? '⚫ 黑棋落子' : '⚪ 白棋落子';
   document.getElementById('caps-black').textContent = `提子 ${game.captures[E.BLACK]}`;
   document.getElementById('caps-white').textContent = `提子 ${game.captures[E.WHITE]}`;
 }
 
+function aiSay(text) {
+  document.getElementById('ai-say-text').textContent = text;
+}
+
 function showGameOver() {
-  const r = E.score(game, 7.5);   // 黑贴7.5目（常见贴目）
-  const t = document.getElementById('result-title');
-  const x = document.getElementById('result-text');
-  t.textContent = r.winner === E.BLACK ? '🏆 黑棋获胜' : '🏆 白棋获胜';
-  x.innerHTML = `黑 ${r.black} 目 vs 白 ${r.white} 目<br>胜 ${r.margin} 目`;
+  const r = E.score(game, 7.5);
+  document.getElementById('result-title').textContent =
+    r.winner === E.BLACK ? '🏆 黑棋获胜' : '🏆 白棋获胜';
+  document.getElementById('result-text').innerHTML =
+    `黑 ${r.black} 目 vs 白 ${r.white} 目<br>胜 ${r.margin} 目`;
   document.getElementById('game-over').classList.add('show');
 }
 
+function afterMove() {
+  draw(); updateStatus();
+  if (game.passes >= 2) { showGameOver(); return; }
+  if (aiColor !== null && game.currentPlayer === aiColor && !busy) aiTurn();
+}
+
+function aiTurn() {
+  busy = true;
+  updateStatus();
+  // 让界面先显示"思考中"，再开始算
+  setTimeout(() => {
+    const mv = AI.bestMove(game, aiColor, level, 7.5);
+    busy = false;
+    if (mv.pass) {
+      aiSay(mv.explainMain || '我停一手');
+      E.pass(game);
+    } else {
+      aiSay(
+        mv.explainMain +
+        (mv.explainDetail ? '\n' + mv.explainDetail : '') +
+        (mv.advice ? '\n' + mv.advice : '')
+      );
+      E.tryPlace(game, mv.x, mv.y, aiColor);
+    }
+    draw(); updateStatus();
+    if (game.passes >= 2) { showGameOver(); return; }
+  }, 420);
+}
+
 canvas.addEventListener('pointerdown', (e) => {
+  if (busy) return;                       // AI 思考时别打扰它
+  if (aiColor !== null && game.currentPlayer === aiColor) return;  // 不是你的回合
   const g = pixelToGrid(e.clientX, e.clientY);
   if (!g) return;
   const r = E.tryPlace(game, g.x, g.y, game.currentPlayer);
-  if (r.ok) { draw(); updateStatus(); }
+  if (r.ok) afterMove();
 });
 
 document.getElementById('btn-pass').addEventListener('click', () => {
-  const over = E.pass(game);
+  if (busy) return;
+  if (aiColor !== null && game.currentPlayer === aiColor) return;
+  E.pass(game);
   updateStatus();
-  if (over) showGameOver();
+  if (game.passes >= 2) { showGameOver(); return; }
+  if (aiColor !== null && game.currentPlayer === aiColor) aiTurn();
 });
 
 document.getElementById('btn-undo').addEventListener('click', () => {
-  if (E.undo(game)) { draw(); updateStatus(); }
+  if (busy) return;
+  // 人机模式：一次悔两步（AI 那手 + 你那手），不然白悔
+  const steps = (aiColor !== null) ? 2 : 1;
+  let ok = false;
+  for (let i = 0; i < steps; i++) if (E.undo(game)) ok = true;
+  if (ok) { draw(); updateStatus(); }
 });
 
-function restartGame() {
+document.getElementById('btn-restart').addEventListener('click', () => {
+  if (busy) return;
   game = E.createGame();
-  document.getElementById('game-over').classList.remove('show');
-  draw();
-  updateStatus();
+  draw(); updateStatus();
+  if (aiColor === E.BLACK) aiTurn();
+});
+
+document.getElementById('btn-menu').addEventListener('click', backToMenu);
+
+/* 开发调试用：?demo=1 自动摆几子；?mode=ai-white|ai-black|pvp 直接进模式 */
+const urlq = new URLSearchParams(location.search);
+if (urlq.has('mode')) {
+  const m = urlq.get('mode');
+  if (['pvp', 'ai-black', 'ai-white'].includes(m)) startGame(m);
 }
-document.getElementById('btn-restart').addEventListener('click', restartGame);
-
-draw();
-updateStatus();
-
-/* 开发调试用：在网址后加 ?demo=1 会自动摆上几颗子，方便检查绘制效果 */
-if (new URLSearchParams(location.search).has('demo')) {
+if (urlq.has('demo')) {
+  startGame('pvp');
   E.tryPlace(game, 3, 3, E.BLACK);
   E.tryPlace(game, 15, 15, E.WHITE);
   E.tryPlace(game, 15, 3, E.BLACK);
   E.tryPlace(game, 3, 15, E.WHITE);
   E.tryPlace(game, 9, 9, E.BLACK);
-  draw();
-  updateStatus();
+  draw(); updateStatus();
 }
 </script>
 </body>
